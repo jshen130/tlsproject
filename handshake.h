@@ -30,19 +30,19 @@
 /* Macros defining the sizes of various messages for use in reading and sending messages. */
 #define INT_SIZE sizeof(int)
 #define HELLO_MSG_SIZE 3*INT_SIZE
-#define CERT_MSG_SIZE INT_SIZE + RSA_MAX_LEN
-#define PS_MSG_SIZE INT_SIZE + RSA_MAX_LEN
+#define CERT_MSG_SIZE    INT_SIZE + RSA_MAX_LEN
+#define PS_MSG_SIZE      INT_SIZE + RSA_MAX_LEN
 #define TLS_MSG_SIZE MAX_RECEIVE_BYTES
 
 /* TLS message types for hello messages. For detailed descriptions, see spec. */
-#define ERROR_MESSAGE 0x0
-#define CLIENT_HELLO 0x1
-#define SERVER_HELLO 0x2
-#define CLIENT_CERTIFICATE 0x3
-#define SERVER_CERTIFICATE 0x4
-#define PREMASTER_SECRET 0x5
+#define ERROR_MESSAGE        0x0
+#define CLIENT_HELLO         0x1
+#define SERVER_HELLO         0x2
+#define CLIENT_CERTIFICATE   0x3
+#define SERVER_CERTIFICATE   0x4
+#define PREMASTER_SECRET     0x5
 #define VERIFY_MASTER_SECRET 0x6
-#define ENCRYPTED_MESSAGE 0x7
+#define ENCRYPTED_MESSAGE    0x7
 
 /* Cipher suite constants for hello messages. */
 #define TLS_RSA_WITH_AES_128_ECB_SHA256 0x3C

@@ -219,9 +219,7 @@ int main(int argc, char **argv) {
  * \param key_mod          The modulus of the public key for decrypting
  *                         the certificate.
  */
-void
-decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t key_mod)
-{
+void decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t key_mod) {
   // YOUR CODE HERE
 }
 
@@ -237,9 +235,7 @@ decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t key_
  * \param key_mod          The modulus of the public key for decrypting
  *                         the master secret.
  */
-void
-decrypt_verify_master_secret(mpz_t decrypted_ms, ps_msg *ms_ver, mpz_t key_exp, mpz_t key_mod)
-{
+void decrypt_verify_master_secret(mpz_t decrypted_ms, ps_msg *ms_ver, mpz_t key_exp, mpz_t key_mod) {
   // YOUR CODE HERE
 }
 
@@ -252,9 +248,7 @@ decrypt_verify_master_secret(mpz_t decrypted_ms, ps_msg *ms_ver, mpz_t key_exp, 
  * \param master_secret    A pointer to the final value of the master secret.
  *                         Write the end result here.
  */
-void
-compute_master_secret(int ps, int client_random, int server_random, char *master_secret)
-{
+void compute_master_secret(int ps, int client_random, int server_random, char *master_secret) {
   // YOUR CODE HERE
 }
 
@@ -267,9 +261,7 @@ compute_master_secret(int ps, int client_random, int server_random, char *master
  * \param msg              A pointer to the message to send.
  * \param msg_len          The length of the message in bytes.
  */
-int
-send_tls_message(int socketno, void *msg, int msg_len)
-{
+int send_tls_message(int socketno, void *msg, int msg_len) {
   // YOUR CODE HERE
 }
 
@@ -283,9 +275,7 @@ send_tls_message(int socketno, void *msg, int msg_len)
  * \param msg_len          The length of the message in bytes.
  * \param msg_type         The expected type of the message to receive.
  */
-int
-receive_tls_message(int socketno, void *msg, int msg_len, int msg_type)
-{
+int receive_tls_message(int socketno, void *msg, int msg_len, int msg_type) {
   // YOUR CODE HERE
 }
 
@@ -302,16 +292,48 @@ receive_tls_message(int socketno, void *msg, int msg_len, int msg_type)
  *
  * Fill in this function with your proj0 solution or see staff solutions.
  */
-static void
-perform_rsa(mpz_t result, mpz_t message, mpz_t e, mpz_t n)
-{
+static void perform_rsa(mpz_t result, mpz_t message, mpz_t e, mpz_t n) {
+  mpz_t zero, one, odd;
+  mpz_t square, power;
+  mpz_init(zero);
+  mpz_init(one);
+  mpz_set_str(one, "1", 10);
+
+  if (!mpz_cmp(e, zero)) {       // if msg^0, then 1
+    mpz_set_str(result, "1", 10);
+
+  } else if (!mpz_cmp(e, one)) { // if msg^1, then msg
+    mpz_add(result, message, zero);
+
+  } else{
+    mpz_init(square);
+    mpz_init(power);
+    mpz_init(odd);
+
+    mpz_add(odd, one, one); // odd = 1 + 1
+    mpz_div(power, e, odd); // power = e/2
+    mpz_mod(odd,   e, odd); // odd = e % 2
+    mpz_mul(square, message, message); // sq = msg^2 
+    mpz_mod(square, square,  n); // sq = msg^2 mod n
+
+    perform_rsa(result, square, power, n);
+    if (mpz_cmp(odd, zero)) // e % 2 > 0
+      mpz_mul(result, result, message);
+
+    mpz_clear(odd);
+    mpz_clear(power);
+    mpz_clear(square);
+  }
+
+
+  mpz_mod(result, result, n);
+  mpz_clear(zero);
+  mpz_clear(one);
 }
 
 
 /* Returns a pseudo-random integer. */
-static int
-random_int()
-{
+static int random_int() {
   srand(time(NULL));
   return rand();
 }
@@ -322,9 +344,7 @@ random_int()
  * \param output_str      A pointer to the output string.
  * \param input           The number to convert to ascii.
  */
-void
-mpz_get_ascii(char *output_str, mpz_t input)
-{
+void mpz_get_ascii(char *output_str, mpz_t input) {
   int i,j;
   char *result_str;
   result_str = mpz_get_str(NULL, HEX_BASE, input);
@@ -344,9 +364,7 @@ mpz_get_ascii(char *output_str, mpz_t input)
  * \param data             The input hex value.
  * \param data_len         The length of the data in bytes.
  */
-char
-*hex_to_str(char *data, int data_len)
-{
+char *hex_to_str(char *data, int data_len) {
   int i;
   char *output_str = calloc(1+2*data_len, sizeof(char));
   for (i = 0; i < data_len; i += 1) {
@@ -356,9 +374,7 @@ char
 }
 
 /* Return the public key exponent given the decrypted certificate as string. */
-void
-get_cert_exponent(mpz_t result, char *cert)
-{
+void get_cert_exponent(mpz_t result, char *cert) {
   char *srch, *srch2;
   char exponent[RSA_MAX_LEN/2];
   memset(exponent, 0, RSA_MAX_LEN/2);
@@ -376,9 +392,7 @@ get_cert_exponent(mpz_t result, char *cert)
 }
 
 /* Return the public key modulus given the decrypted certificate as string. */
-void
-get_cert_modulus(mpz_t result, char *cert)
-{
+void get_cert_modulus(mpz_t result, char *cert) {
   char *srch, *srch2;
   char modulus[RSA_MAX_LEN/2];
   memset(modulus, 0, RSA_MAX_LEN/2);
@@ -394,35 +408,27 @@ get_cert_modulus(mpz_t result, char *cert)
 }
 
 /* Prints the usage string for this program and exits. */
-static void
-usage()
-{
+static void usage() {
     printf("./client -i <server_ip_address> -c <certificate_file> -m <modulus_file> -d <exponent_file>\n");
     exit(1);
 }
 
 /* Catches the signal from C-c and closes connection with server. */
-static void
-kill_handler(int signum)
-{
+static void kill_handler(int signum) {
   if (signum == SIGTERM) {
     cleanup();
   }
 }
 
 /* Converts the two input hex characters into an ascii char. */
-static int
-hex_to_ascii(char a, char b)
-{
+static int hex_to_ascii(char a, char b) {
     int high = hex_to_int(a) * 16;
     int low = hex_to_int(b);
     return high + low;
 }
 
 /* Converts a hex value into an int. */
-static int
-hex_to_int(char a)
-{
+static int hex_to_int(char a) {
     if (a >= 97) {
 	a -= 32;
     }
@@ -436,9 +442,7 @@ hex_to_int(char a)
 }
 
 /* Closes files and exits the program. */
-static void
-cleanup()
-{
+static void cleanup() {
   close(sockfd);
   exit(1);
 }
