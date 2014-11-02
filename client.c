@@ -220,7 +220,12 @@ int main(int argc, char **argv) {
  *                         the certificate.
  */
 void decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t key_mod) {
-  // YOUR CODE HERE
+  mpz_t message;
+  size_t bytes_read;
+  
+  mpz_init(message);
+  mpz_init_set_str(message, cert->cert, 0);
+  perform_rsa(decrypted_cert, message, key_exp, key_mod);
 }
 
 /*
