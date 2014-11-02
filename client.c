@@ -262,7 +262,12 @@ void compute_master_secret(int ps, int client_random, int server_random, char *m
  * \param msg_len          The length of the message in bytes.
  */
 int send_tls_message(int socketno, void *msg, int msg_len) {
-  // YOUR CODE HERE
+  int result;
+  result = write(socketno, msg, msg_len);
+  if (result < 0) {
+    perror("Error sending message to socket %d", socketno);
+    exit(1);
+  }
 }
 
 /*
@@ -276,7 +281,15 @@ int send_tls_message(int socketno, void *msg, int msg_len) {
  * \param msg_type         The expected type of the message to receive.
  */
 int receive_tls_message(int socketno, void *msg, int msg_len, int msg_type) {
-  // YOUR CODE HERE
+  int result;
+  result = read(socketno, msg, msg_len);
+  if (result < 0) {
+    perror("Erro receiving message from socket %d", socketno);
+    exit(1);
+  }
+  if (msg->type != msg_type) {
+    printf("Didn't receive message type expected.");
+  }
 }
 
 
