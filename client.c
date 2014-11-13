@@ -289,7 +289,7 @@ int receive_tls_message(int socketno, void *msg, int msg_len, int msg_type) {
   int result;
   result = read(socketno, msg, msg_len);
   if (result < 0) {
-    perror("Erro receiving message from socket %d", socketno);
+    perror("Error receiving message from socket %d", socketno);
     exit(1);
   }
   if (msg->type != msg_type) {
