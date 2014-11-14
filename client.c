@@ -282,12 +282,15 @@ void compute_master_secret(int ps, int client_random, int server_random, char *m
  * \param msg_len          The length of the message in bytes.
  */
 int send_tls_message(int socketno, void *msg, int msg_len) {
-  int result;
+  int result; // returns bytes written
   result = write(socketno, msg, msg_len);
-  if (result < 0) {
-    perror("Error sending message to socket %d", socketno);
-    exit(1);
+  if (result < 0) { 
+    // perror("Error sending message to socket %d", socketno);
+    fprintf(stderr, "Error sending message from socket %d\n", socketno);
+    return ERR_FAILURE;
+    // exit(1);
   }
+  return ERR_OK;
 }
 
 /*
@@ -304,12 +307,16 @@ int receive_tls_message(int socketno, void *msg, int msg_len, int msg_type) {
   int result;
   result = read(socketno, msg, msg_len);
   if (result < 0) {
-    perror("Error receiving message from socket %d", socketno);
-    exit(1);
+    // perror("Error receiving message from socket %d", socketno);
+    fprintf(stderr, "Error receiving message from socket %d\n", socketno);
+    return ERR_FAILURE;
   }
-  if (msg->type != msg_type) {
+  if ( *((int *)msg) != msg_type) {
+    // look at piazza post 477
     printf("Didn't receive message type expected.");
+    return ERR_FAILURE;
   }
+  return ERR_OK;
 }
 
 
