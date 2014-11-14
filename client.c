@@ -224,7 +224,7 @@ void decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t
   size_t bytes_read;
   
   mpz_init(message);
-  mpz_init_set_str(message, cert->cert, 0);
+  mpz_init_set_str(message, cert->cert, HEX_BASE); // NOTE: i think this should be base 16? 
   perform_rsa(decrypted_cert, message, key_exp, key_mod);
 }
 
@@ -254,7 +254,22 @@ void decrypt_verify_master_secret(mpz_t decrypted_ms, ps_msg *ms_ver, mpz_t key_
  *                         Write the end result here.
  */
 void compute_master_secret(int ps, int client_random, int server_random, char *master_secret) {
-  // YOUR CODE HERE
+  // master secret = H(PS||clientHello.random||serverhello.random||ps)
+  SHA256_CTX sha_ctx;
+  sha256_init(&sha_ctx);
+  // generate concatenated hash
+  void *ps_ptr = &ps;
+  void *client_random_ptr = &client_random;
+  void *server_random_ptr = &server_random;
+
+  sha256_update(&sha_ctx, ps_ptr, INT_SIZE);
+  sha256_update(&sha_ctx, client_random_ptr, INT_SIZE);
+  sha256_update(&sha_ctx, server_random_ptr, INT_SIZE);
+  sha256_update(&sha_ctx, ps_ptr, INT_SIZE);
+
+  // write result to master_secret & pad
+  sha256_final(&sha_ctx, (unsigned char*) master_secret);
+
 }
 
 /*
