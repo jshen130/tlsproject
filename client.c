@@ -241,7 +241,12 @@ void decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t
  *                         the master secret.
  */
 void decrypt_verify_master_secret(mpz_t decrypted_ms, ps_msg *ms_ver, mpz_t key_exp, mpz_t key_mod) {
-  // YOUR CODE HERE
+  // use client private key 
+  mpz_t master_secret;
+  mpz_init(master_secret);
+  mpz_init_set_str(master_secret, ms_ver->ps, HEX_BASE);
+  perform_rsa(decrypted_ms, master_secret, key_exp, key_mod);
+
 }
 
 /*
