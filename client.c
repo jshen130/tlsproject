@@ -73,15 +73,15 @@ int main(int argc, char **argv) {
     case 'c':
       c_file = fopen(optarg, "r");
       if (c_file == NULL) {
-	perror("Certificate file error");
-	exit(1);
+  perror("Certificate file error");
+  exit(1);
       }
       break;
     case 'd':
       d_file = fopen(optarg, "r");
       if (d_file == NULL) {
-	perror("Exponent file error");
-	exit(1);
+  perror("Exponent file error");
+  exit(1);
       }
       break;
     case 'i':
@@ -90,8 +90,8 @@ int main(int argc, char **argv) {
     case 'm':
       m_file = fopen(optarg, "r");
       if (m_file == NULL) {
-	perror("Modulus file error");
-	exit(1);
+  perror("Modulus file error");
+  exit(1);
       }
       break;
     case '?':
@@ -131,9 +131,129 @@ int main(int argc, char **argv) {
     cleanup();
   }
 
-  // YOUR CODE HERE
-  // IMPLEMENT THE TLS HANDSHAKE
+  /*
+   * TLS HANDSHAKE 
+   */
 
+   // SEND CLIENT HELLO
+  hello_message *client_hello_msg = malloc(HELLO_MSG_SIZE);
+  client_hello_msg->type = CLIENT_HELLO;
+  client_hello_msg->random = random_int();
+  client_hello_msg->cipher_suite = TLS_RSA_WITH_AES_128_ECB_SHA256;
+  int result = send_tls_message(sockfd, client_hello_msg, HELLO_MSG_SIZE);
+  if (result == ERR_FAILURE) {
+    perror("ERROR SENDING CLIENT HELLO. EXITING.");
+    exit(1);
+  }
+
+  // RECEIVE SERVER HELLO
+  printf("#### CHECK RECEIVE SERVER HELLO\n");
+  hello_message *server_hello_msg = malloc(HELLO_MSG_SIZE);
+  int server_hello_result = receive_tls_message(sockfd, server_hello_msg, HELLO_MSG_SIZE, SERVER_HELLO);
+
+   // SEND CLIENT CERT
+  if (server_hello_result == ERR_OK && (server_hello_msg->type == SERVER_HELLO)) {
+    printf("#### SERVER HELLO WORKED! ### \n");
+
+    cert_message *client_cert_msg = malloc(CERT_MSG_SIZE);
+    client_cert_msg->type = CLIENT_CERTIFICATE;
+    //read client cert into char array
+    fread(client_cert_msg->cert, RSA_MAX_LEN, 1, c_file);
+    send_tls_message(sockfd, client_cert_msg, CERT_MSG_SIZE);
+    printf("### CLIENT CERT MESSAGE SENT \n");
+  } else {
+    printf("SERVER HELLO FAILED, EXITING. \n");
+    exit(1);
+  }
+
+   // RECEIVE SERVER CERT
+  printf("### CHECK SERVER CERT RESPONSE\n");
+  cert_message *server_cert_msg = malloc(CERT_MSG_SIZE);
+  int server_cert_result = receive_tls_message(sockfd, server_cert_msg, CERT_MSG_SIZE, SERVER_CERTIFICATE);
+  mpz_t server_decrypted_cert;
+  mpz_t server_pexp; 
+  mpz_t server_pmod;
+  mpz_t ca_exp, ca_mod;
+  if (server_cert_result == ERR_OK) {
+    printf("### SERVER CERT WORKED! \n");
+
+    mpz_init(server_decrypted_cert);
+    mpz_init(server_pexp);
+    mpz_init(server_pmod);
+    mpz_init(ca_exp);
+    mpz_init(ca_mod);
+    mpz_init_set_str(ca_exp, CA_EXPONENT, 0);
+    mpz_init_set_str(ca_mod, CA_MODULUS, 0);
+
+    decrypt_cert(server_decrypted_cert, server_cert_msg, ca_exp, ca_mod);
+    char *decrypted_cert_str = calloc(BYTE_SIZE, RSA_MAX_LEN);
+    mpz_get_ascii(decrypted_cert_str, server_decrypted_cert);
+    printf("%s\n", decrypted_cert_str);
+
+    get_cert_exponent(server_pexp, decrypted_cert_str);
+    get_cert_modulus(server_pmod, decrypted_cert_str);
+
+  } else {
+    printf("SERVER CERT BAD RESPONSE. EXITING\n");
+    exit(1);
+  }
+
+   // SEND PREMASTER SECRET 
+  printf("## CREATING PREMASTER SECRET\n");
+  ps_msg *client_ps_msg = malloc(PS_MSG_SIZE);
+  client_ps_msg->type = PREMASTER_SECRET;
+  int ps = random_int();
+  mpz_t ps_rsa, ps_mpz;
+  mpz_init(ps_mpz);
+  mpz_init(ps_rsa);
+  mpz_set_ui(ps_mpz, ps);
+
+  // encrypt with servers public RSA key
+  perform_rsa(ps_rsa, ps_mpz, server_pexp, server_pmod);
+  mpz_get_str(client_ps_msg->ps, HEX_BASE, ps_rsa);
+  int ps_response = send_tls_message(sockfd, client_ps_msg, PS_MSG_SIZE);
+  if (ps_response == ERR_OK) {
+    printf("## SENDING PS WORKED\n ");
+  } else {
+    printf("PS SENT GOT BAD RESPONSE. EXITING\n");
+    exit(1);
+  }
+
+  // COMPUTE MASTER SECRET LOCALLY
+  char *client_master_secret = calloc(SHA_BLOCK_SIZE, BYTE_SIZE);
+  int client_random_int = client_hello_msg->random;
+  int server_random_int = server_hello_msg->random;
+  mpz_t client_ms; // to compare with server ms
+  mpz_init(client_ms);
+  compute_master_secret(ps, client_random_int, server_random_int, client_master_secret);
+  char *hex_ms_str = calloc(SHA_BLOCK_SIZE, BYTE_SIZE); 
+  hex_ms_str = hex_to_str(client_master_secret, SHA_BLOCK_SIZE);
+
+  mpz_init_set_str(client_ms, hex_ms_str, HEX_BASE);
+  gmp_printf("### CLIENT MPZFORM %Zd\n", client_ms);
+
+  // RECEIVE MASTER SECRET 
+  ps_msg *server_master_msg = malloc(PS_MSG_SIZE);
+  int server_ms_response = receive_tls_message(sockfd, server_master_msg, PS_MSG_SIZE, VERIFY_MASTER_SECRET);
+  if ( server_ms_response == ERR_OK) {
+    printf("##GOT MASTER, TIME TO VERIFY.\n");
+  } else {
+    printf("SERVER MS BAD MESSAGE. EXITING\n");
+    exit(1);
+  }
+
+  // VERIFY SERVER MASTER SECRET MATCHES LOCAL MASTER SECRET
+  mpz_t server_ms; // to compare with local value
+  mpz_init(server_ms);
+  decrypt_verify_master_secret(server_ms, server_master_msg, client_exp, client_mod);
+  gmp_printf("### SERVER MPZFORM %Zd\n", server_ms);
+
+  if (mpz_cmp(server_ms, client_ms) != 0) {
+    printf("SERVER AND CLIENT HAVE DIFFERENT MASTER SECRETS. BYEBYE \n");
+    exit(1);
+  } else {
+    printf("####### HECKYAH STEPHANIE IS COOL\n");
+  }
   /*
    * START ENCRYPTED MESSAGES
    */
@@ -150,6 +270,12 @@ int main(int argc, char **argv) {
   
   // YOUR CODE HERE
   // SET AES KEYS
+  char *aes_key = malloc(256);
+  // aes_key = 
+// 
+  aes_setkey_enc(&enc_ctx, (unsigned char*) client_master_secret, 256);
+  aes_setkey_dec(&dec_ctx, (unsigned char*) client_master_secret, 256);
+
 
   fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
   /* Send and receive data. */
@@ -168,35 +294,35 @@ int main(int argc, char **argv) {
       memset(send_plaintext, 0, AES_BLOCK_SIZE);
       read_size = read(STDIN_FILENO, send_plaintext, AES_BLOCK_SIZE);
       while (read_size > 0 && counter + AES_BLOCK_SIZE < TLS_MSG_SIZE - INT_SIZE) {
-	if (read_size > 0) {
-	  err = aes_crypt_ecb(&enc_ctx, AES_ENCRYPT, send_plaintext, send_ciphertext);
-	  memcpy(send_msg.msg + counter, send_ciphertext, AES_BLOCK_SIZE);
-	  counter += AES_BLOCK_SIZE;
-	}
-	memset(send_plaintext, 0, AES_BLOCK_SIZE);
-	read_size = read(STDIN_FILENO, send_plaintext, AES_BLOCK_SIZE);
+  if (read_size > 0) {
+    err = aes_crypt_ecb(&enc_ctx, AES_ENCRYPT, send_plaintext, send_ciphertext);
+    memcpy(send_msg.msg + counter, send_ciphertext, AES_BLOCK_SIZE);
+    counter += AES_BLOCK_SIZE;
+  }
+  memset(send_plaintext, 0, AES_BLOCK_SIZE);
+  read_size = read(STDIN_FILENO, send_plaintext, AES_BLOCK_SIZE);
       }
       write_size = write(sockfd, &send_msg, INT_SIZE+counter+AES_BLOCK_SIZE);
       if (write_size < 0) {
-	perror("Could not write to socket");
-	cleanup();
+  perror("Could not write to socket");
+  cleanup();
       }
     } else if (FD_ISSET(sockfd, &readfds)) {
       memset(&rcv_msg, 0, TLS_MSG_SIZE);
       memset(rcv_ciphertext, 0, AES_BLOCK_SIZE);
       read_size = read(sockfd, &rcv_msg, TLS_MSG_SIZE);
       if (read_size > 0) {
-	if (rcv_msg.type != ENCRYPTED_MESSAGE) {
-	  goto out;
-	}
-	memcpy(rcv_ciphertext, rcv_msg.msg, AES_BLOCK_SIZE);
-	counter = 0;
-	while (counter < read_size - INT_SIZE - AES_BLOCK_SIZE) {
-	  aes_crypt_ecb(&dec_ctx, AES_DECRYPT, rcv_ciphertext, rcv_plaintext);
-	  printf("%s", rcv_plaintext);
-	  counter += AES_BLOCK_SIZE;
-	  memcpy(rcv_ciphertext, rcv_msg.msg+counter, AES_BLOCK_SIZE);
-	}
+  if (rcv_msg.type != ENCRYPTED_MESSAGE) {
+    goto out;
+  }
+  memcpy(rcv_ciphertext, rcv_msg.msg, AES_BLOCK_SIZE);
+  counter = 0;
+  while (counter < read_size - INT_SIZE - AES_BLOCK_SIZE) {
+    aes_crypt_ecb(&dec_ctx, AES_DECRYPT, rcv_ciphertext, rcv_plaintext);
+    printf("%s", rcv_plaintext);
+    counter += AES_BLOCK_SIZE;
+    memcpy(rcv_ciphertext, rcv_msg.msg+counter, AES_BLOCK_SIZE);
+  }
       }
     }
 
@@ -224,7 +350,7 @@ void decrypt_cert(mpz_t decrypted_cert, cert_message *cert, mpz_t key_exp, mpz_t
   size_t bytes_read;
   
   mpz_init(message);
-  mpz_init_set_str(message, cert->cert, HEX_BASE); // NOTE: i think this should be base 16? 
+  mpz_init_set_str(message, cert->cert, 0); 
   perform_rsa(decrypted_cert, message, key_exp, key_mod);
 }
 
@@ -318,7 +444,7 @@ int receive_tls_message(int socketno, void *msg, int msg_len, int msg_type) {
   }
   if ( *((int *)msg) != msg_type) {
     // look at piazza post 477
-    printf("Didn't receive message type expected.");
+    printf("Didn't receive message type expected. GOT: %d \n",  *((int *)msg));
     return ERR_FAILURE;
   }
   return ERR_OK;
@@ -475,13 +601,13 @@ static int hex_to_ascii(char a, char b) {
 /* Converts a hex value into an int. */
 static int hex_to_int(char a) {
     if (a >= 97) {
-	a -= 32;
+  a -= 32;
     }
     int first = a / 16 - 3;
     int second = a % 16;
     int result = first*10 + second;
     if (result > 9) {
-	result -= 1;
+  result -= 1;
     }
     return result;
 }
