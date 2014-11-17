@@ -21,6 +21,8 @@ static void kill_handler(int signum);
 static int random_int();
 static void cleanup();
 
+void print_hash(unsigned char hash[]);
+
 int main(int argc, char **argv) {
   int err, option_index, c, clientlen, counter;
   unsigned char rcv_plaintext[AES_BLOCK_SIZE];
@@ -232,6 +234,10 @@ int main(int argc, char **argv) {
   mpz_init_set_str(client_ms, hex_ms_str, HEX_BASE);
   gmp_printf("### CLIENT MPZFORM %Zd\n", client_ms);
 
+  printf("### HOLD UP\n");
+  print_hash((unsigned char*)client_master_secret);
+  printf("\n");
+
   // RECEIVE MASTER SECRET 
   ps_msg *server_master_msg = malloc(PS_MSG_SIZE);
   int server_ms_response = receive_tls_message(sockfd, server_master_msg, PS_MSG_SIZE, VERIFY_MASTER_SECRET);
@@ -270,12 +276,8 @@ int main(int argc, char **argv) {
   
   // YOUR CODE HERE
   // SET AES KEYS
-  char *aes_key = malloc(256);
-  // aes_key = 
-// 
-  aes_setkey_enc(&enc_ctx, (unsigned char*) client_master_secret, 256);
-  aes_setkey_dec(&dec_ctx, (unsigned char*) client_master_secret, 256);
-
+  int what = aes_setkey_enc(&enc_ctx, (unsigned char*) client_master_secret, 128);
+  int hello = aes_setkey_dec(&dec_ctx, (unsigned char*) client_master_secret, 128);
 
   fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
   /* Send and receive data. */
@@ -323,6 +325,7 @@ int main(int argc, char **argv) {
     counter += AES_BLOCK_SIZE;
     memcpy(rcv_ciphertext, rcv_msg.msg+counter, AES_BLOCK_SIZE);
   }
+  printf("\n");
       }
     }
 
@@ -616,4 +619,11 @@ static int hex_to_int(char a) {
 static void cleanup() {
   close(sockfd);
   exit(1);
+}
+
+void print_hash(unsigned char hash[]) {
+  int idx;
+  for (idx = 0; idx < 32; idx++)
+    printf("%02x", hash[idx]);
+  printf("\n");
 }
