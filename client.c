@@ -149,27 +149,22 @@ int main(int argc, char **argv) {
   }
 
   // RECEIVE SERVER HELLO
-  printf("#### CHECK RECEIVE SERVER HELLO\n");
   hello_message *server_hello_msg = malloc(HELLO_MSG_SIZE);
   int server_hello_result = receive_tls_message(sockfd, server_hello_msg, HELLO_MSG_SIZE, SERVER_HELLO);
 
    // SEND CLIENT CERT
   if (server_hello_result == ERR_OK && (server_hello_msg->type == SERVER_HELLO)) {
-    printf("#### SERVER HELLO WORKED! ### \n");
-
     cert_message *client_cert_msg = malloc(CERT_MSG_SIZE);
     client_cert_msg->type = CLIENT_CERTIFICATE;
     //read client cert into char array
     fread(client_cert_msg->cert, RSA_MAX_LEN, 1, c_file);
     send_tls_message(sockfd, client_cert_msg, CERT_MSG_SIZE);
-    printf("### CLIENT CERT MESSAGE SENT \n");
   } else {
     printf("SERVER HELLO FAILED, EXITING. \n");
     exit(1);
   }
 
    // RECEIVE SERVER CERT
-  printf("### CHECK SERVER CERT RESPONSE\n");
   cert_message *server_cert_msg = malloc(CERT_MSG_SIZE);
   int server_cert_result = receive_tls_message(sockfd, server_cert_msg, CERT_MSG_SIZE, SERVER_CERTIFICATE);
   mpz_t server_decrypted_cert;
@@ -177,8 +172,6 @@ int main(int argc, char **argv) {
   mpz_t server_pmod;
   mpz_t ca_exp, ca_mod;
   if (server_cert_result == ERR_OK) {
-    printf("### SERVER CERT WORKED! \n");
-
     mpz_init(server_decrypted_cert);
     mpz_init(server_pexp);
     mpz_init(server_pmod);
@@ -190,7 +183,6 @@ int main(int argc, char **argv) {
     decrypt_cert(server_decrypted_cert, server_cert_msg, ca_exp, ca_mod);
     char *decrypted_cert_str = calloc(BYTE_SIZE, RSA_MAX_LEN);
     mpz_get_ascii(decrypted_cert_str, server_decrypted_cert);
-    printf("%s\n", decrypted_cert_str);
 
     get_cert_exponent(server_pexp, decrypted_cert_str);
     get_cert_modulus(server_pmod, decrypted_cert_str);
@@ -201,7 +193,6 @@ int main(int argc, char **argv) {
   }
 
    // SEND PREMASTER SECRET 
-  printf("## CREATING PREMASTER SECRET\n");
   ps_msg *client_ps_msg = malloc(PS_MSG_SIZE);
   client_ps_msg->type = PREMASTER_SECRET;
   int ps = random_int();
@@ -214,9 +205,7 @@ int main(int argc, char **argv) {
   perform_rsa(ps_rsa, ps_mpz, server_pexp, server_pmod);
   mpz_get_str(client_ps_msg->ps, HEX_BASE, ps_rsa);
   int ps_response = send_tls_message(sockfd, client_ps_msg, PS_MSG_SIZE);
-  if (ps_response == ERR_OK) {
-    printf("## SENDING PS WORKED\n ");
-  } else {
+  if (ps_response != ERR_OK) {
     printf("PS SENT GOT BAD RESPONSE. EXITING\n");
     exit(1);
   }
@@ -232,18 +221,11 @@ int main(int argc, char **argv) {
   hex_ms_str = hex_to_str(client_master_secret, SHA_BLOCK_SIZE);
 
   mpz_init_set_str(client_ms, hex_ms_str, HEX_BASE);
-  gmp_printf("### CLIENT MPZFORM %Zd\n", client_ms);
-
-  printf("### HOLD UP\n");
-  print_hash((unsigned char*)client_master_secret);
-  printf("\n");
 
   // RECEIVE MASTER SECRET 
   ps_msg *server_master_msg = malloc(PS_MSG_SIZE);
   int server_ms_response = receive_tls_message(sockfd, server_master_msg, PS_MSG_SIZE, VERIFY_MASTER_SECRET);
-  if ( server_ms_response == ERR_OK) {
-    printf("##GOT MASTER, TIME TO VERIFY.\n");
-  } else {
+  if ( server_ms_response != ERR_OK) {
     printf("SERVER MS BAD MESSAGE. EXITING\n");
     exit(1);
   }
@@ -252,14 +234,11 @@ int main(int argc, char **argv) {
   mpz_t server_ms; // to compare with local value
   mpz_init(server_ms);
   decrypt_verify_master_secret(server_ms, server_master_msg, client_exp, client_mod);
-  gmp_printf("### SERVER MPZFORM %Zd\n", server_ms);
-
   if (mpz_cmp(server_ms, client_ms) != 0) {
     printf("SERVER AND CLIENT HAVE DIFFERENT MASTER SECRETS. BYEBYE \n");
     exit(1);
-  } else {
-    printf("####### HECKYAH STEPHANIE IS COOL\n");
-  }
+  } 
+
   /*
    * START ENCRYPTED MESSAGES
    */
